@@ -71,12 +71,14 @@ def base_format(symbol, side, value, price, exchange_tag):
     if skull_line:
         return (
             f"{skull_line}\n"
-            f"*{exchange_tag} Liquidated\\!* {position} {emoji}${asset}\n"
+            f"*{exchange_tag} Liquidation\\!*\n"
+            f"{position} {emoji}${asset}\n"
             f"*{v_fmt} @ {p_fmt}*"
         )
     else:
         return (
-            f"*{exchange_tag} Liquidated\\!* {position} {emoji}${asset}\n"
+            f"*{exchange_tag} Liquidation\\!*\n"
+            f"{position} {emoji}${asset}\n"
             f"*{v_fmt} @ {p_fmt}*"
         )
 
@@ -91,12 +93,14 @@ def generic_format(symbol, side, value, price, exchange_tag):
     if skull_line:
         return (
             f"{skull_line}\n"
-            f"*{exchange_tag} Liquidated\\!* {position} ${s}\n"
+            f"*{exchange_tag} Liquidation\\!*\n"
+            f"{position} ${s}\n"
             f"*{v_fmt} @ {p_fmt}*"
         )
     else:
         return (
-            f"*{exchange_tag} Liquidated\\!* {position} ${s}\n"
+            f"*{exchange_tag} Liquidation\\!*\n"
+            f"{position} ${s}\n"
             f"*{v_fmt} @ {p_fmt}*"
         )
 
