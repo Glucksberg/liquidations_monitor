@@ -56,7 +56,7 @@ def md_escape(text: str) -> str:
         text = text.replace(ch, f"\\{ch}")
     return text
 
-def skulls(value: float, step: int = 100_000) -> str:
+def skulls(value: float, step: int = 1_000_000) -> str:
     return "💀" * int(value // step)
 
 def base_format(symbol, side, value, price, exchange_tag):
@@ -66,13 +66,19 @@ def base_format(symbol, side, value, price, exchange_tag):
     position = "SHORT" if side == "BUY" or side == "Buy" else "LONG"
     v_fmt = md_escape(f"${value:,.2f}")
     p_fmt = md_escape(f"{price:,.2f}")
-    time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-    time_escaped = md_escape(time)
-    return (
-        f"{skulls(value)} *{exchange_tag} Liquidated\\!* {position} {emoji}${asset}\n"
-        f"*{v_fmt} @ {p_fmt}*\n"
-        f"`{time_escaped}`"
-    )
+    
+    skull_line = skulls(value)
+    if skull_line:
+        return (
+            f"{skull_line}\n"
+            f"*{exchange_tag} Liquidated\\!* {position} {emoji}${asset}\n"
+            f"*{v_fmt} @ {p_fmt}*"
+        )
+    else:
+        return (
+            f"*{exchange_tag} Liquidated\\!* {position} {emoji}${asset}\n"
+            f"*{v_fmt} @ {p_fmt}*"
+        )
 
 def generic_format(symbol, side, value, price, exchange_tag):
     """Format for other symbols (above 500k)"""
@@ -80,18 +86,26 @@ def generic_format(symbol, side, value, price, exchange_tag):
     s = md_escape(symbol)
     v_fmt = md_escape(f"${value:,.2f}")
     p_fmt = md_escape(f"{price:,.2f}")
-    time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-    time_escaped = md_escape(time)
-    return (
-        f"{skulls(value)} *{exchange_tag} Liquidated\\!* {position} ${s}\n"
-        f"*{v_fmt} @ {p_fmt}*\n"
-        f"`{time_escaped}`"
-    )
+    
+    skull_line = skulls(value)
+    if skull_line:
+        return (
+            f"{skull_line}\n"
+            f"*{exchange_tag} Liquidated\\!* {position} ${s}\n"
+            f"*{v_fmt} @ {p_fmt}*"
+        )
+    else:
+        return (
+            f"*{exchange_tag} Liquidated\\!* {position} ${s}\n"
+            f"*{v_fmt} @ {p_fmt}*"
+        )
 
 class BinanceMonitor:
     def __init__(self):
         self.ws = None
         self.running = False
+        self.reconnect_count = 0
+        self.max_reconnect_attempts = 10
 
     def on_message(self, ws, message):
         try:
@@ -107,7 +121,7 @@ class BinanceMonitor:
                 return
 
             # Apply filter rules
-            if symbol in TRACKED_SYMBOLS and value >= 50_000:
+            if symbol in TRACKED_SYMBOLS and value >= 500_000:
                 alert = base_format(symbol, side, value, price, "🔶 Binance")
                 print(f"🚨 Binance Special: {symbol} ${value:,.2f}")
                 send_telegram(alert)
@@ -124,9 +138,15 @@ class BinanceMonitor:
 
     def on_close(self, ws, close_status_code, close_msg):
         print(f"⚠️ Binance connection closed: {close_status_code}")
+        if self.running and self.reconnect_count < self.max_reconnect_attempts:
+            self.reconnect_count += 1
+            print(f"🔄 Binance reconnecting... ({self.reconnect_count}/{self.max_reconnect_attempts})")
+            time.sleep(5)  # Wait 5 seconds before reconnecting
+            self.start()
 
     def on_open(self, ws):
         print("🟢 Binance connected")
+        self.reconnect_count = 0  # Reset reconnect counter on successful connection
 
     def start(self):
         self.running = True
@@ -137,6 +157,19 @@ class BinanceMonitor:
             on_error=self.on_error,
             on_close=self.on_close
         )
+        
+        # Ping thread to maintain connection
+        def ping_loop():
+            while self.running:
+                time.sleep(30)
+                try:
+                    if self.ws and hasattr(self.ws, 'sock') and self.ws.sock:
+                        self.ws.sock.ping()
+                        print("💓 Binance ping")
+                except:
+                    break
+        
+        threading.Thread(target=ping_loop, daemon=True).start()
         self.ws.run_forever()
 
 class BybitMonitor:
@@ -161,7 +194,7 @@ class BybitMonitor:
                     value = size * price
                     
                     # Apply filter rules
-                    if symbol in TRACKED_SYMBOLS and value >= 50_000:
+                    if symbol in TRACKED_SYMBOLS and value >= 500_000:
                         alert = base_format(symbol, side, value, price, "🟨 Bybit")
                         print(f"🚨 Bybit Special: {symbol} ${value:,.2f}")
                         send_telegram(alert)
@@ -214,11 +247,11 @@ class BybitMonitor:
 
 def main():
     print("🚀 Starting Integrated Monitor...")
-    print(f"📊 Special Symbols: {TRACKED_SYMBOLS} (≥$50k)")
+    print(f"📊 Special Symbols: {TRACKED_SYMBOLS} (≥$500k)")
     print(f"💰 Generic Threshold: ≥$500k")
     
     # Send startup message
-    start_msg = f"🚀 *Integrated Monitor Active*\n📊 BTC, ETH, SOL: ≥$50k\n💰 Others: ≥$500k"
+    start_msg = f"🚀 *Integrated Monitor Active*\n📊 BTC, ETH, SOL: ≥$500k\n💰 Others: ≥$500k"
     send_telegram(start_msg)
     
     # Start monitors in separate threads
