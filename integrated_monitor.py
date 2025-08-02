@@ -66,12 +66,21 @@ def md_escape(text: str) -> str:
 def skulls(value: float, step: int = 1_000_000) -> str:
     return "💀" * int(value // step)
 
+def format_value_compact(value: float) -> str:
+    """Format value in compact format: $2.16M, $542.3k"""
+    if value >= 1_000_000:
+        return f"${round(value / 1_000_000, 2):.2f}M"
+    elif value >= 1_000:
+        return f"${round(value / 1_000, 1):.1f}k"
+    else:
+        return f"${value:.2f}"
+
 def base_format(symbol, side, value, price, exchange_tag):
     """Format for special symbols (BTC, ETH, SOL)"""
     asset = symbol.replace("USDT", "").replace("USDC", "")
     emoji = SYMBOL_COLORS.get(asset, "")
     position = "SHORT" if side == "BUY" or side == "Buy" else "LONG"
-    v_fmt = md_escape(f"${value:,.2f}")
+    v_fmt = md_escape(format_value_compact(value))
     p_fmt = md_escape(f"{price:,.2f}")
     
     skull_line = skulls(value)
@@ -93,7 +102,7 @@ def generic_format(symbol, side, value, price, exchange_tag):
     """Format for other symbols (above 500k)"""
     position = "SHORT" if side == "BUY" or side == "Buy" else "LONG"
     s = md_escape(symbol)
-    v_fmt = md_escape(f"${value:,.2f}")
+    v_fmt = md_escape(format_value_compact(value))
     p_fmt = md_escape(f"{price:,.2f}")
     
     skull_line = skulls(value)
@@ -208,10 +217,10 @@ def test_hyperliquid_parsing():
             
             # Test filter
             value = parsed['value']
-            if value >= 300_000:
-                print(f"✅ Filtro: Passou (${value:,.2f} >= $300k)")
+            if value >= 1_000_000:
+                print(f"✅ Filtro: Passou (${value:,.2f} >= $1M)")
             else:
-                print(f"❌ Filtro: Bloqueado (${value:,.2f} < $300k)")
+                print(f"❌ Filtro: Bloqueado (${value:,.2f} < $1M)")
         else:
             print("❌ Parsing falhou")
     
@@ -238,7 +247,7 @@ class BinanceMonitor:
                 return
 
             # Apply filter rules
-            if symbol in TRACKED_SYMBOLS and value >= 500_000:
+            if symbol in TRACKED_SYMBOLS and value >= 1_000_000:
                 alert = base_format(symbol, side, value, price, "🔶 Binance")
                 print(f"🚨 Binance Special: {symbol} ${value:,.2f}")
                 send_telegram(alert)
@@ -321,7 +330,7 @@ class BybitMonitor:
                     value = size * price
                     
                     # Apply filter rules
-                    if symbol in TRACKED_SYMBOLS and value >= 500_000:
+                    if symbol in TRACKED_SYMBOLS and value >= 1_000_000:
                         alert = base_format(symbol, side, value, price, "🟨 Bybit")
                         print(f"🚨 Bybit Special: {symbol} ${value:,.2f}")
                         send_telegram(alert)
@@ -520,10 +529,10 @@ class HyperliquidMonitor:
             if parsed:
                 print(f"✅ Hyperliquid: Mensagem parseada: {parsed}")
                 
-                # Apply filter: only show liquidations >= $300k
+                # Apply filter: only show liquidations >= $1M
                 value = parsed['value']
-                if value < 300_000:
-                    print(f"❌ Hyperliquid: Liquidação filtrada (${value:,.2f} < $300k)")
+                if value < 1_000_000:
+                    print(f"❌ Hyperliquid: Liquidação filtrada (${value:,.2f} < $1M)")
                     return
                 
                 # Format message in our style
@@ -649,9 +658,9 @@ async def setup_hyperliquid_auth():
 
 def main():
     print("🚀 Starting Integrated Monitor...")
-    print(f"📊 Special Symbols: {TRACKED_SYMBOLS} (≥$500k)")
+    print(f"📊 Special Symbols: {TRACKED_SYMBOLS} (≥$1M)")
     print(f"💰 Generic Threshold: ≥$500k")
-    print(f"📡 Hyperliquid Channel: @{HYPERLIQUID_CHANNEL} (≥$300k)")
+    print(f"📡 Hyperliquid Channel: @{HYPERLIQUID_CHANNEL} (≥$1M)")
     
     # Test Hyperliquid parsing first
     test_hyperliquid_parsing()
@@ -664,7 +673,7 @@ def main():
         print("\n✅ Autenticação concluída. Iniciando monitores...\n")
     
     # Send startup message
-    start_msg = f"🚀 *Integrated Monitor Active*\n📊 BTC, ETH, SOL: ≥$500k\n💰 Others: ≥$500k\n📡 Hyperliquid: ≥$300k"
+    start_msg = f"🚀 *Integrated Monitor Active*\n📊 BTC, ETH, SOL: ≥$1M\n💰 Others: ≥$500k\n📡 Hyperliquid: ≥$1M"
     send_telegram(start_msg)
     
     # Start monitors in separate threads
